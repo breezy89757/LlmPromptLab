@@ -1,0 +1,123 @@
+@page "/"
+@using LlmPocApp.Components
+@using LlmPocApp.Services
+@inject PromptGenerationService PromptService
+@inject EvaluationService EvaluationService
+
+<div class="lab-container">
+    <div class="lab-input-panel">
+        <div class="panel-header">
+            <h3>🧪 提示詞實驗室</h3>
+            <span class="version-tag">v0.1</span>
+        </div>
+
+        <div class="form-group">
+            <label>🎯 機器人目標 / 上下文</label>
+            <textarea @bind="goal" class="input-goal" placeholder="描述您希望機器人做什麼... (例如：你是一個憤世嫉俗的天氣機器人，討厭下雨)"></textarea>
+        </div>
+
+        <div class="example-grid">
+            <div class="form-group">
+                 <label>👤 預期使用者輸入</label>
+                 <textarea @bind="expectedInput" placeholder="User: 今天天氣如何？"></textarea>
+            </div>
+
+            <div class="form-group">
+                 <label>🤖 預期回答 (標準答案)</label>
+                 <textarea @bind="expectedOutput" placeholder="Assistant: 唉，又在下雨了，這種事還要問嗎？"></textarea>
+            </div>
+            
+            @if (evaluationResult != null)
+            {
+                <div class="evaluation-result @(evaluationResult.Score >= 70 ? "pass" : "fail")">
+                    <div class="result-header">
+                        <span class="score-badge">@evaluationResult.Score 分</span>
+                        <span class="result-label">AI 評鑑</span>
+                    </div>
+                    <p class="reasoning">@evaluationResult.Reasoning</p>
+                </div>
+            }
+        </div>
+        
+        <div class="action-buttons">
+            <button class="btn-generate" @onclick="GeneratePrompt" disabled="@(isGenerating || isTesting || string.IsNullOrWhiteSpace(goal))">
+                @(isGenerating ? "✨ 生成中..." : "✨ 生成 System Prompt")
+            </button>
+            <button class="btn-test" @onclick="RunTest" disabled="@(isGenerating || isTesting || string.IsNullOrWhiteSpace(expectedInput))">
+                @(isTesting ? "⏳ 測試中..." : "🧪 執行測試")
+            </button>
+        </div>
+    </div>
+
+    <div class="lab-chat-panel">
+        <ChatPanel @ref="chatPanel"
+                   ExternalSystemPrompt="@generatedSystemPrompt" 
+                   OnResponseReceived="OnChatResponseReceived" />
+    </div>
+</div>
+
+@code {
+    private string goal = "";
+    private string expectedInput = "";
+    private string expectedOutput = "";
+    private string? generatedSystemPrompt;
+    
+    private bool isGenerating = false;
+    private bool isTesting = false;
+    private EvaluationResult? evaluationResult;
+    
+    private ChatPanel? chatPanel;
+
+    private async Task GeneratePrompt()
+    {
+        isGenerating = true;
+        evaluationResult = null; // Clear previous result
+        StateHasChanged();
+        
+        try
+        {
+            generatedSystemPrompt = await PromptService.GenerateSystemPromptAsync(goal, expectedInput, expectedOutput);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+        finally
+        {
+            isGenerating = false;
+        }
+    }
+
+    private async Task RunTest()
+    {
+        if (chatPanel == null || string.IsNullOrWhiteSpace(expectedInput)) return;
+
+        isTesting = true;
+        evaluationResult = null;
+        StateHasChanged();
+
+        // Trigger chat to send the 'Expected Input' as a user message
+        await chatPanel.SendMessage(expectedInput);
+    }
+
+    private async Task OnChatResponseReceived(string actualOutput)
+    {
+        if (isTesting)
+        {
+            try 
+            {
+                // Perform Evaluation
+                evaluationResult = await EvaluationService.EvaluateAsync(goal, expectedInput, expectedOutput, actualOutput);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Evaluation Error: {ex.Message}");
+            }
+            finally
+            {
+                isTesting = false;
+                StateHasChanged();
+            }
+        }
+    }
+}

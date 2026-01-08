@@ -1,0 +1,157 @@
+/* ===========================================
+   LlmPocApp - Minimal Global Styles
+   Only theme variables, reset, and font
+   All component styles use scoped .razor.css
+   =========================================== */
+
+/* Google Fonts - Inter */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* ===== Theme Variables ===== */
+:root {
+    --bg-base: #ffffff;
+    --bg-sidebar: #f7f7f8;
+    --bg-card: #ffffff;
+    --bg-hover: #ececec;
+    --border-color: #e5e5e5;
+    --text-primary: #1a1a1a;
+    --text-secondary: #6b6b6b;
+    --text-muted: #9a9a9a;
+    --accent: #6366f1;
+    --accent-hover: #4f46e5;
+    --shadow: rgba(0, 0, 0, 0.06);
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+}
+
+[data-theme="dark"] {
+    --bg-base: #0f0f1a;
+    --bg-sidebar: #1a1a2e;
+    --bg-card: #1e1e32;
+    --bg-hover: #2a2a40;
+    --border-color: #3a3a50;
+    --text-primary: #e8e8e8;
+    --text-secondary: #a0a0a0;
+    --text-muted: #707070;
+    --accent: #818cf8;
+    --accent-hover: #a5b4fc;
+    --shadow: rgba(0, 0, 0, 0.3);
+}
+
+/* ===== Reset ===== */
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body {
+    height: 100%;
+    overflow: hidden;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    background: var(--bg-base);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+/* ===== Blazor Error UI ===== */
+#blazor-error-ui {
+    background: #fff3cd;
+    color: #856404;
+    bottom: 0;
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 9999;
+}
+
+/* ===== Reconnect Modal ===== */
+#components-reconnect-modal {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 10000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    backdrop-filter: blur(5px);
+}
+
+#components-reconnect-modal.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#components-reconnect-modal>a,
+#components-reconnect-modal>h5 {
+    display: none;
+}
+
+.reconnect-content {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    padding: 2rem;
+    border-radius: 16px;
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+}
+
+.reconnect-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(99, 102, 241, 0.3);
+    border-radius: 50%;
+    border-top-color: var(--accent);
+    margin: 0 auto 1.5rem;
+    animation: spin 1s linear infinite;
+}
+
+.reconnect-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.reconnect-message {
+    color: var(--text-secondary);
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

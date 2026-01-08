@@ -1,0 +1,29 @@
+@*
+    LlmPocApp - Minimal Layout
+    Single-page layout without sidebar/menu
+*@
+@inherits LayoutComponentBase
+@inject IJSRuntime JS
+
+<div class="app-container" data-theme="@(isDarkMode ? "dark" : "light")">
+    <header class="app-header">
+        <h1 class="app-title">LLM 提示詞實驗室</h1>
+        <button class="theme-toggle" @onclick="ToggleTheme" title="Toggle Theme">
+            @(isDarkMode ? "☀️" : "🌙")
+        </button>
+    </header>
+
+    <main class="app-main">
+        @Body
+    </main>
+</div>
+
+@code {
+    private bool isDarkMode = true;  // Default to dark mode
+    
+    private async Task ToggleTheme()
+    {
+        isDarkMode = !isDarkMode;
+        await JS.InvokeVoidAsync("eval", $"document.documentElement.setAttribute('data-theme', '{(isDarkMode ? "dark" : "light")}')");
+    }
+}

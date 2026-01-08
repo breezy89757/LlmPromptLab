@@ -1,0 +1,251 @@
+@* 
+    ChatPanel.razor
+    A reusable chat UI component with conversation history.
+    
+    Usage:
+    <ChatPanel SystemPrompt="你是一個有用的助手" />
+*@
+
+@using LlmPocApp.Services
+@inject LlmChatService ChatService
+
+<div class="chat-panel">
+    @* System Prompt Editor (collapsible) *@
+    <div class="chat-config">
+        <div class="config-toggle" @onclick="ToggleConfig">
+            <span>@(isConfigOpen ? "▼" : "▶") 系統設定 (System & Model)</span>
+        </div>
+        @if (isConfigOpen)
+        {
+            <div class="config-content">
+                <textarea rows="4" 
+                          @bind="currentSystemPrompt" 
+                          @bind:event="oninput"
+                          placeholder="輸入 System Prompt..."></textarea>
+                <button @onclick="ApplySystemPrompt" style="margin-top: 0.5rem;">
+                    套用
+                </button>
+                <div class="model-selector" style="margin-top: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+                    <label style="display: block; font-size: 0.8rem; margin-bottom: 0.4rem; color: var(--text-secondary);">模型選擇 (Model)</label>
+                    <select @onchange="OnModelChanged" value="@selectedModel" style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-primary);">
+                        <option value="gpt-5-chat">GPT-5 Chat (Preview)</option>
+                        <option value="gpt-5.2-chat">GPT-5.2 Chat (Alpha)</option>
+                        <option value="gpt-5.1-codex-max">GPT-5.1 Codex Max</option>
+                        <option value="gpt-5-codex">GPT-5 Codex</option>
+                        <option value="gpt-4o">GPT-4o (Standard)</option>
+                        <option value="o1-preview">o1-preview</option>
+                        <option value="o1-mini">o1-mini</option>
+                    </select>
+                </div>
+            </div>
+        }
+    </div>
+
+    @* Chat Messages *@
+    <div class="chat-messages">
+        @if (ChatService.History.Count == 0)
+        {
+            <div class="chat-empty">
+                <span class="chat-empty-icon">💬</span>
+                <p>開始對話吧！</p>
+            </div>
+        }
+        else
+        {
+            @foreach (var message in ChatService.History)
+            {
+                <div class="chat-message @(message.Role == "user" ? "user" : "assistant")">
+                    <div class="message-avatar">
+                        @(message.Role == "user" ? "👤" : "🤖")
+                    </div>
+                    <div class="message-content">
+
+                        <div class="message-text">@message.Content</div>
+                        <div class="message-time">@message.Timestamp.ToString("HH:mm")</div>
+                    </div>
+                </div>
+            }
+        }
+        
+        @if (isLoading)
+        {
+            <div class="chat-message assistant">
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+
+                    <div class="message-loading">
+                        <span class="loading-dot"></span>
+                        <span class="loading-dot"></span>
+                        <span class="loading-dot"></span>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    @* Input Area *@
+    <div class="chat-input-area">
+        <textarea class="chat-input" 
+                  @bind="userInput" 
+                  @bind:event="oninput"
+                  @onkeydown="HandleKeyDown"
+                  placeholder="輸入訊息... (Shift+Enter 換行, Enter 送出)"
+                  disabled="@isLoading"
+                  rows="2"></textarea>
+        <div class="chat-actions">
+            <button class="btn-clear" @onclick="ClearChat" disabled="@isLoading" title="清除對話">
+                🗑️
+            </button>
+            <button class="btn-send" @onclick="() => SendMessage()" disabled="@(isLoading || string.IsNullOrWhiteSpace(userInput))">
+                @if (isLoading)
+                {
+                    <span>處理中...</span>
+                }
+                else
+                {
+                    <span>送出</span>
+                }
+            </button>
+        </div>
+    </div>
+    
+    @* Token Stats Footer *@
+    <div class="chat-stats">
+        <span title="總成本">💰 $@ChatService.TotalCost.ToString("0.0000")</span>
+        <span class="stats-divider">|</span>
+        <span title="輸入 Tokens">⬇️ @ChatService.TotalInputTokens</span>
+        <span class="stats-divider">|</span>
+        <span title="輸出 Tokens">⬆️ @ChatService.TotalOutputTokens</span>
+        <span class="stats-divider">|</span>
+        <span title="使用模型">🤖 @(ChatService.LastUsedModel ?? "Ready")</span>
+        <span class="stats-divider">|</span>
+        <span title="平均耗時">⏳ @ChatService.AverageLatency.TotalSeconds.ToString("0.0")s</span>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert-error">
+            <span>@errorMessage</span>
+            <button @onclick="() => errorMessage = null">✕</button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string SystemPrompt { get; set; } = "You are a helpful assistant.";
+
+    [Parameter]
+    public EventCallback<string> OnMessageSent { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnResponseReceived { get; set; }
+
+    [Parameter] public string? ExternalSystemPrompt { get; set; }
+    
+    private string systemPrompt = "You are a helpful assistant.";
+    private string currentSystemPrompt = "You are a helpful assistant.";
+    private bool isConfigOpen = false;
+    private List<LlmPocApp.Services.ConversationMessage> messages = new();
+    private string userInput = "";
+    private bool isLoading = false;
+    private string? errorMessage;
+    private string selectedModel = "gpt-4o"; // Default to gpt-4o or read from settings
+    
+    protected override void OnInitialized()
+    {
+        // Load history (if any)
+        messages = ChatService.History.ToList();
+        
+        // Initialize from parameter or default
+        if (string.IsNullOrEmpty(ExternalSystemPrompt))
+        {
+            systemPrompt = SystemPrompt;
+        }
+        else 
+        {
+            systemPrompt = ExternalSystemPrompt;
+        }
+        
+        currentSystemPrompt = systemPrompt;
+        ChatService.SetSystemPrompt(systemPrompt);
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrEmpty(ExternalSystemPrompt) && ExternalSystemPrompt != systemPrompt)
+        {
+            systemPrompt = ExternalSystemPrompt;
+            currentSystemPrompt = systemPrompt;
+            ChatService.SetSystemPrompt(systemPrompt);
+        }
+    }
+
+    private void ToggleConfig() => isConfigOpen = !isConfigOpen;
+
+    private void OnModelChanged(ChangeEventArgs e)
+    {
+        selectedModel = e.Value?.ToString() ?? "gpt-4o";
+        ChatService.UpdateModel(selectedModel);
+    }
+
+    private void ApplySystemPrompt()
+    {
+        systemPrompt = currentSystemPrompt;
+        ChatService.SetSystemPrompt(systemPrompt);
+        isConfigOpen = false;
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey && !isLoading && !string.IsNullOrWhiteSpace(userInput))
+        {
+            await SendMessage();
+        }
+    }
+
+    public async Task SendMessage(string? text = null)
+    {
+        var messageToSend = text ?? userInput;
+        if (string.IsNullOrWhiteSpace(messageToSend) || isLoading)
+            return;
+
+        var message = messageToSend.Trim();
+        if (string.IsNullOrEmpty(text))
+        {
+            userInput = string.Empty;
+        }
+
+        isLoading = true;
+        errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            await ChatService.SendMessageAsync(message);
+            await OnMessageSent.InvokeAsync(message);
+
+            // Notify parent about the response
+            var response = ChatService.History.LastOrDefault();
+            if (response != null && response.Role != "user")
+            {
+                await OnResponseReceived.InvokeAsync(response.Content);
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"錯誤: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ClearChat()
+    {
+        ChatService.ClearHistory();
+        errorMessage = null;
+    }
+}
